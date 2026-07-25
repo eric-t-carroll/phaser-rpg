@@ -121,11 +121,14 @@ class DungeonScene extends Phaser.Scene {
       return;
     }
 
-    //confirm player is not moving
+    //check player and npc are not moving or attacking
     const areAttacking = this.entities.some(
-      (attack) => attack.isAttacking === true,
+        (attack) => attack.isAttacking === true,
     );
-    if (!this.player.isMoving && !this.player.isAttacking && !areAttacking) {
+    const areMoving = this.entities.some(
+        (move) => move.isMoving === true,
+    );
+    if (!areMoving && !areAttacking) {
       this.player.axis = "";
       this.player.direction = 0;
 
