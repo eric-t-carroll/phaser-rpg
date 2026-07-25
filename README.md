@@ -1,5 +1,7 @@
 # Phaser-RPG
 
+---
+
 ## What is it?
 Creating a turn based dungeon crawler in Phaser, with an old school flavour and basic geometry for graphics. First go at creating something in Javascript.
 
@@ -11,7 +13,7 @@ Creating a turn based dungeon crawler in Phaser, with an old school flavour and 
 5. Run `npm run dev` to start the Vite dev server.
 6. Open a browser and navigate to http://localhost:5173/.
 
--------
+---
 
 ## Features
 
@@ -28,10 +30,15 @@ Creating a turn based dungeon crawler in Phaser, with an old school flavour and 
 - NPC AI: chase the player when not adjacent, attack when in range.
 - Combat log (styled as a retro terminal readout).
 - Death handling with a dedicated Game Over scene and restart flow.
+- Turn pacing (delays between actions for readability).
+- Cell highlighting — a translucent, entity-colored square with a bolder border renders behind each entity's shape, anchored to their grid cell. Keeps the occupied tile visible even when `healthShrink` has shrunk an entity's shape down near death. Stays in place during lunge attacks, since the lunge only animates the entity's own shape.
+ - Aggro range (no line of sight).
 
 ### Planned / In Progress
-- Turn pacing (delays between actions for readability).
-- Aggro range and line-of-sight (NPCs should only engage if they can see/reach the player).
+- Aggro line-of-sight (NPCs should only engage if they can see/reach the player).
+- Highlight grid cells where NPCs have aggro range so a player knows when they are about to engage.
+- When aggro'ed, NPCs shout to warn other NPCs within close range. Multiple grouped NPCs aggro at the same time.
+- Add NPC shout to combat log.
 - Opportunity attacks (free hit if you flee an adjacent melee NPC).
 - Designed maps with actual rooms, not just an open bordered area.
 - Combat log color-coding by attack type/outcome.
@@ -43,6 +50,8 @@ Creating a turn based dungeon crawler in Phaser, with an old school flavour and 
 - Title screen / main menu.
 - Save/load.
 - Multiple maps or levels.
+- NPCs patrol
+- when not in combat - should the player move more freely, or potentially even just with a smaller pause delay (design decision to be confirmed)
 
 ### Longer-Term / Stretch Goals
 - Telegraphed enemy abilities and interrupts (WoW Classic-inspired tactical combat).
@@ -50,7 +59,7 @@ Creating a turn based dungeon crawler in Phaser, with an old school flavour and 
 ### Explicitly Decided Against (for now)
 - Diagonal movement — sticking with 4-directional to preserve the tactical, old-school feel.
 
--------
+---
 
 ## Known Issues
 
@@ -108,3 +117,38 @@ Creating a turn based dungeon crawler in Phaser, with an old school flavour and 
   which axis to move along compared raw (signed) distances rather than
   magnitude, so a large negative gap could lose out to a near-zero
   positive one, sending NPCs the wrong way.
+- **Move guard didn't account for NPC movement, causing turn overlap and
+  player/NPC desync.** The player's movement guard only checked
+  `!this.player.isMoving` plus an `areAttacking` check, with no equivalent
+  check for NPCs mid-movement (`isMoving`). This let rapid keypresses
+  interrupt an NPC's move or attack animation with a new player move,
+  which could let the player and an NPC end up on the same tile, or leave
+  an NPC's `shape` out of sync with its logical `location` (observed once
+  with an NPC ending up inside a wall tile).
+  Fixed by adding an `areMoving` check (`this.entities.some(...)`)
+  alongside `areAttacking`, so a new turn can't start while *any* entity —
+  player or NPC — is still mid-movement or mid-attack animation.
+- **NPC shapes visually snapped to their destination instead of gliding.**
+  `syncEntity()` for NPCs only ran inside `moveToward`'s `onArrive`
+  callback, so an NPC's shape sat still for the entire glide and then
+  jumped to its final position the instant movement finished — unlike the
+  player, whose `syncEntity()` call ran every frame outside the callback.
+  Pre-existing behavior, made more noticeable once turn pacing added a
+  pause that gave the snap time to be visible.
+  Fixed by moving the NPC `syncEntity()` call to run every frame (same
+  position as the player's), while leaving `isMoving = false` and
+  `advanceNpcTurn()` inside the callback so those still only fire once,
+  on arrival.
+- **Turn pause appeared to do nothing.** `this.globalPauseTime` was
+  declared as `this.globalPauseTurn` (typo) in one spot, so
+  `delayedCall` received `undefined` as its delay and fired
+  immediately. Fixed by correcting the variable name to match.
+- **Player could have their turn before NPCs finished their turns.** 
+After adding `this.time.delayedCall` it opened up a window where checks 
+ensuring nobody was moving or attacking could be passed. NPCs were not 
+attacking or moving during the pause, allowing the player to take another 
+move. Fixed by adding a player turn flag to ensure player could not take 
+their turn while NPCs were taking theirs.
+    - Feels like most bugs are coming up because I alter a function without 
+    properly examining how they are called, to see how the new behaviour 
+    would present.
