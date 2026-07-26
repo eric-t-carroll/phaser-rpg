@@ -33,12 +33,20 @@ Creating a turn based dungeon crawler in Phaser, with an old school flavour and 
 - Turn pacing (delays between actions for readability).
 - Cell highlighting — a translucent, entity-colored square with a bolder border renders behind each entity's shape, anchored to their grid cell. Keeps the occupied tile visible even when `healthShrink` has shrunk an entity's shape down near death. Stays in place during lunge attacks, since the lunge only animates the entity's own shape.
  - Aggro range (no line of sight).
+ - Reduced/removed NPC turn pause when nothing is aggro'd, so exploring with several inactive NPCs on screen no longer feels sluggish.
+ - Aggro-range indicator — reworked from an experimental grid-of-cells version into a single translucent ring per NPC (matches the NPC's own color), tracking smoothly with movement via `syncEntity`.
+ - Aggro-trigger pulse — the first time an NPC transitions to aggro, its ring plays a brighten/dim pulse (via chained Phaser tweens) before fading out and being destroyed. Multiple NPCs aggro'ing from the same player move now pulse simultaneously (tracked via a shared counter), rather than staggered across the turn sequence.
+ - Aggro trigger accounts for the player's shape size (not just its center point), so aggro fires when the player's square visibly touches the ring rather than only once the player's center crosses it.
+ - Health-shrink now remaps between a floor (~10-20%) and ceiling (~85%) instead of the raw 0-100% range, so a shape is never fully invisible right before death, and never fills the entire cell at full health.
+ - Explicit render-depth layering (`renderDepth`: map → aggro ring → entity highlight → entity shape → spell effects), replacing ad-hoc `sendToBack()` calls, so future visual layers (projectiles, cast-range indicators) have a clear place to slot in.
+ - Internal cleanup: extracted `isAdjacent()`, `checkRadiusDistance()`, and `checkNpcAggro()` as small reusable functions; renamed `processNpcTurn` to `processNpcAttack` to reflect its narrowed purpose; renamed misleading `directionX`/`directionY` to `absDistanceX`/`absDistanceY`.
 
 ### Planned / In Progress
 - Aggro line-of-sight (NPCs should only engage if they can see/reach the player).
-- Highlight grid cells where NPCs have aggro range so a player knows when they are about to engage.
 - When aggro'ed, NPCs shout to warn other NPCs within close range. Multiple grouped NPCs aggro at the same time.
 - Add NPC shout to combat log.
+- Wizards approach until in spell range and then they cast fireballs
+- Fireball animation and damage
 - Opportunity attacks (free hit if you flee an adjacent melee NPC).
 - Designed maps with actual rooms, not just an open bordered area.
 - Combat log color-coding by attack type/outcome.
@@ -52,6 +60,7 @@ Creating a turn based dungeon crawler in Phaser, with an old school flavour and 
 - Multiple maps or levels.
 - NPCs patrol
 - when not in combat - should the player move more freely, or potentially even just with a smaller pause delay (design decision to be confirmed)
+
 
 ### Longer-Term / Stretch Goals
 - Telegraphed enemy abilities and interrupts (WoW Classic-inspired tactical combat).
@@ -74,6 +83,10 @@ Creating a turn based dungeon crawler in Phaser, with an old school flavour and 
   then the other axis, then give up for that turn if both are blocked — no
   smarter pathing or fallback. Flagged for revisiting if it looks/feels bad
   in practice with more complex maps.
+- When npcs aggro range is overlapping and one moves, the cells where it was do not 
+render with a new highlight, if it is space where npc 1 no longer has aggro. This is
+because aggro highlights for each npx are created at the end of every move. The blank
+space needs to have highlights created for the npc that is not moving.
 
 ### Fixed
 - **Plain-object Phaser scenes don't support custom methods.** Custom
@@ -143,12 +156,26 @@ Creating a turn based dungeon crawler in Phaser, with an old school flavour and 
   declared as `this.globalPauseTurn` (typo) in one spot, so
   `delayedCall` received `undefined` as its delay and fired
   immediately. Fixed by correcting the variable name to match.
-- **Player could have their turn before NPCs finished their turns.** 
-After adding `this.time.delayedCall` it opened up a window where checks 
-ensuring nobody was moving or attacking could be passed. NPCs were not 
-attacking or moving during the pause, allowing the player to take another 
-move. Fixed by adding a player turn flag to ensure player could not take 
-their turn while NPCs were taking theirs.
-    - Feels like most bugs are coming up because I alter a function without 
-    properly examining how they are called, to see how the new behaviour 
-    would present.
+ - **Player could have their turn before NPCs finished their turns.** 
+ After adding `this.time.delayedCall` it opened up a window where checks 
+ ensuring nobody was moving or attacking could be passed. NPCs were not 
+ attacking or moving during the pause, allowing the player to take another 
+ move. Fixed by adding a player turn flag to ensure player could not take 
+ their turn while NPCs were taking theirs.
+  - Feels like most bugs are coming up because I alter a function without 
+  properly examining how they are called, to see how the new behaviour 
+  would present.
+ - **Aggro highlights did not render where they already previously were. Caused
+ by code that destroyed the highlight shape, but didn't destroy the highlight array.
+ When checking if a highlight already existed, it was present even though it wasn't 
+ being rendered. Fixed by redeclaring the highlight array every move, just before it 
+ gets recreated.
+ - **Multiple NPCs aggro'ing on the same player move pulsed one at a time,
+  staggered across the NPC turn sequence, instead of together.** Aggro was
+  only ever checked one NPC at a time, inside `advanceNpcTurn`, so a second
+  newly-aggro'd NPC's pulse didn't start until the first NPC's entire turn
+  had finished. Fixed by moving aggro-detection for *all* NPCs into
+  `startNpcTurn` (checked once, up front, right after the player's move
+  completes), with a shared counter tracking how many pulses are in
+  flight — the real NPC turn sequence only begins once the counter returns
+  to zero, i.e. once every pulse has genuinely finished.

@@ -39,14 +39,26 @@ class DungeonScene extends Phaser.Scene {
       Player: 0x008000,
       Barbarian: 0xb53737,
       Wizard: 0x0000ff,
+      aggroCells: 0x8000ff,
     };
+    this.healthShrinkFloor = 0.20;
+    this.healthShrinkCeiling = 0.84;
     this.isPlayerTurn = true;
     this.highlightAlpha = 0.25;
     this.highlightStrokeAlpha = 3;
     this.highlightLineWidth = 3;
     this.npcsTurn = [];
     this.npcTurnIndex = 0;
-    this.globalAggroRange = this.gridSize * 6;
+    this.countNpcsAggroed = 0;
+    this.globalAggroCellDistance = 6 * this.gridSize;
+
+    this.renderDepth = {
+      map: 10,
+      aggroCircle: 20,
+      highlight: 30,
+      entity: 40,
+      spellEffect: 100,
+    };
 
     //call create wall function to set walls around the border of the wap
     this.createWall(0, 0, "x", this.gridLength);
@@ -67,6 +79,7 @@ class DungeonScene extends Phaser.Scene {
     ) {
       grid.lineBetween(0, y, phaserRpg.width, y);
     }
+    grid.setDepth(this.renderDepth.map);
 
     //define player start location
     const startLocation = { x: this.gridPosition(3), y: this.gridPosition(3) };
@@ -78,13 +91,15 @@ class DungeonScene extends Phaser.Scene {
       location: startLocation,
       maxHealth: 300,
       currentHealth: 300,
-      shape: this.add.rectangle(
-        startLocation.x,
-        startLocation.y,
-        this.gridSize,
-        this.gridSize,
-        this.entityColors.Player,
-      ),
+      shape: this.add
+        .rectangle(
+          startLocation.x,
+          startLocation.y,
+          this.gridSize,
+          this.gridSize,
+          this.entityColors.Player,
+        )
+        .setDepth(this.renderDepth.entity),
       baseDamage: { melee: { min: 20, max: 30 }, spell: { min: 10, max: 20 } },
       critChance: 0.2,
       isAttacking: false,
@@ -101,8 +116,8 @@ class DungeonScene extends Phaser.Scene {
 
     //create array for locations and call function to place Barbarians
     this.locationBarbarians = [
-      { x: this.gridPosition(3), y: this.gridPosition(6) },
-      { x: this.gridPosition(4), y: this.gridPosition(5) },
+      { x: this.gridPosition(13), y: this.gridPosition(7) },
+      { x: this.gridPosition(22), y: this.gridPosition(18) },
     ];
     for (let i = 0; i < this.locationBarbarians.length; i++) {
       this.createNpc(
@@ -113,8 +128,8 @@ class DungeonScene extends Phaser.Scene {
     }
     //create array for locations and call function to place Wizards
     this.locationWizards = [
-      { x: this.gridPosition(7), y: this.gridPosition(6) },
-      { x: this.gridPosition(5), y: this.gridPosition(9) },
+      { x: this.gridPosition(15), y: this.gridPosition(15) },
+      { x: this.gridPosition(9), y: this.gridPosition(22) },
     ];
     for (let i = 0; i < this.locationWizards.length; i++) {
       this.createNpc(
@@ -239,6 +254,7 @@ class DungeonScene extends Phaser.Scene {
           if (died) {
             this.player.attackTarget.shape.destroy();
             this.player.attackTarget.highlight.destroy();
+            this.player.attackTarget.aggroCircle.destroy();
             this.entities = this.entities.filter(
               (npc) => npc !== this.player.attackTarget,
             );
@@ -340,13 +356,15 @@ class DungeonScene extends Phaser.Scene {
       const current = { x: start.x, y: start.y };
       current[axis] = start[axis] + i;
       this.walls.push(
-        this.add.rectangle(
-          this.gridPosition(current.x),
-          this.gridPosition(current.y),
-          this.gridSize,
-          this.gridSize,
-          0x808080,
-        ),
+        this.add
+          .rectangle(
+            this.gridPosition(current.x),
+            this.gridPosition(current.y),
+            this.gridSize,
+            this.gridSize,
+            0x808080,
+          )
+          .setDepth(this.renderDepth.map),
       );
     }
   }
@@ -355,6 +373,10 @@ class DungeonScene extends Phaser.Scene {
   syncEntity(entity) {
     entity.highlight.x = entity.shape.x = entity.location.x;
     entity.highlight.y = entity.shape.y = entity.location.y;
+    if (entity.type === "npc") {
+      entity.aggroCircle.x = entity.location.x;
+      entity.aggroCircle.y = entity.location.y;
+    }
   }
 
   moveToward(mover, target, axis, direction, speed, onArrive) {
@@ -375,7 +397,10 @@ class DungeonScene extends Phaser.Scene {
 
   //function to reduce the size of player and npc shapes when they take damage
   healthShrink(entity, maxHealth, currentHealth) {
-    const remainingHealthRatio = currentHealth / maxHealth;
+    const maxHealthRatio = currentHealth / maxHealth;
+    const remainingHealthRatio =
+      this.healthShrinkFloor +
+      maxHealthRatio * (this.healthShrinkCeiling - this.healthShrinkFloor);
     if (entity.type === "Rectangle") {
       entity.setSize(
         this.gridSize * remainingHealthRatio,
@@ -426,16 +451,15 @@ class DungeonScene extends Phaser.Scene {
   }
 
   createNpc(npcClass, x, y) {
+    let newNpc = null;
     if (npcClass === "Barbarian") {
-      const newBarbarian = {
+      newNpc = {
         type: "npc",
         name: npcClass,
-        shape: this.add.circle(
-          x,
-          y,
-          this.gridSize / 2,
-          this.entityColors.Barbarian,
-        ),
+        shape: this.add
+          .circle(x, y, this.gridSize / 2, this.entityColors.Barbarian)
+          .setDepth(this.renderDepth.entity),
+        aggroCircle: null,
         location: { x: x, y: y },
         maxHealth: 100,
         currentHealth: 100,
@@ -443,19 +467,15 @@ class DungeonScene extends Phaser.Scene {
         critChance: 0.2,
         attackType: "melee",
       };
-      this.createHighlight(newBarbarian);
-      this.entities.push(newBarbarian);
     }
 
     if (npcClass === "Wizard") {
-      const half = this.gridSize / 2;
-      this.casterDiamond = [0, -half, half, 0, 0, half, -half, 0]; // relative points, centered on 0,0
-
       //place enemy diamond
-      const newWizard = {
+      newNpc = {
         type: "npc",
         name: npcClass,
         shape: this.addDiamond(x, y, this.entityColors.Wizard),
+        aggroCircle: null,
         location: { x: x, y: y },
         maxHealth: 50,
         currentHealth: 50,
@@ -463,15 +483,18 @@ class DungeonScene extends Phaser.Scene {
         critChance: 0.2,
         attackType: "spell",
       };
-      this.createHighlight(newWizard);
-      this.entities.push(newWizard);
     }
+    this.entities.push(newNpc);
+    this.createHighlight(newNpc);
+    this.createNpcAggroCircle(newNpc);
   }
 
   addDiamond(x, y, color) {
     const half = this.gridSize / 2;
     const points = [0, -half, half, 0, 0, half, -half, 0];
-    const diamond = this.add.polygon(x, y, points, color);
+    const diamond = this.add
+      .polygon(x, y, points, color)
+      .setDepth(this.renderDepth.entity);
     diamond.setDisplayOrigin(
       diamond.displayOriginX - half,
       diamond.displayOriginY - half,
@@ -493,7 +516,15 @@ class DungeonScene extends Phaser.Scene {
       this.entityColors[entity.name],
       this.highlightStrokeAlpha,
     );
-    this.children.sendToBack(entity.highlight);
+    entity.highlight.setDepth(this.renderDepth.highlight);
+  }
+
+  isAdjacent(absDistanceX, absDistanceY) {
+    //If adjacent return true
+    return (
+      (absDistanceX === this.gridSize && absDistanceY === 0) ||
+      (absDistanceX === 0 && absDistanceY === this.gridSize)
+    );
   }
 
   startMeleeLunge(entity) {
@@ -531,94 +562,139 @@ class DungeonScene extends Phaser.Scene {
     this.npcsTurn = [];
     this.npcTurnIndex = 0;
     for (let i = 0; i < this.entities.length; i++) {
-      if (this.entities[i].type === "npc") {
-        this.npcsTurn.push(this.entities[i]);
-      }
-    }
-    this.advanceNpcTurn();
-  }
-
-  advanceNpcTurn() {
-    if (this.npcTurnIndex < this.npcsTurn.length) {
-        const npcTurnNow = this.npcTurnIndex;
-        this.npcTurnIndex++;
-        this.time.delayedCall(this.globalPauseTime, () =>
-        this.processNpcTurn(this.npcsTurn[npcTurnNow]),
-      );
-    } else {
-        this.isPlayerTurn = true;
-    }
-  }
-
-  processNpcTurn(entity) {
-    const directionX = Math.abs(this.player.location.x - entity.location.x);
-    const directionY = Math.abs(this.player.location.y - entity.location.y);
-    const distance = Math.sqrt(directionX ** 2 + directionY ** 2);
-    if (distance <= this.globalAggroRange) {
-        entity.isAggro = true;
-    }
-
-    if (entity.isAggro) {
-        //If npc is an adjacent, start lunge attack
-        if (
-            ((directionX === this.gridSize && directionY === 0) ||
-            (directionX === 0 && directionY === this.gridSize)) &&
-            entity.attackType === "melee"
-            ) {
-            //determine which axis the npc is attacking on
-            if (directionX === 0) {
-                entity.axis = "y";
-            } else {
-                entity.axis = "x";
-            }
-            //determine the direction the npc is attacking
-            entity.direction = Math.sign(
-                this.player.location[entity.axis] - entity.location[entity.axis],
-            );
-            this.startMeleeLunge(entity);
-
-            //start Wizard attack
-            } else if (
-            ((directionX === this.gridSize && directionY === 0) ||
-                (directionX === 0 && directionY === this.gridSize)) &&
-            entity.attackType === "spell"
-            ) {
-            //calculate damage and set variable if npc died
-            this.npcAttack(entity);
-            this.advanceNpcTurn();
-            } else {
-            //determine if distance along x or y axis is bigger
-            const distanceX = this.player.location.x - entity.location.x;
-            const distanceY = this.player.location.y - entity.location.y;
-            if (directionX > directionY) {
-                entity.axis = "x";
-                entity.direction = Math.sign(distanceX);
-            }
-            if (directionX < directionY) {
-                entity.axis = "y";
-                entity.direction = Math.sign(distanceY);
-            }
-            if (directionX === directionY) {
-                entity.axis = Math.random() < 0.5 ? "x" : "y";
-                if (entity.axis === "x") {
-                entity.direction = Math.sign(distanceX);
-                } else {
-                entity.direction = Math.sign(distanceY);
-                }
-            }
-            entity.targetTile =
-                entity.location[entity.axis] + entity.direction * this.gridSize;
-            //check if npc can move
-            if (this.checkCanMoveTo(entity, entity.axis, entity.direction)) {
-                //set NPC isMoving
-                entity.isMoving = true;
-            } else {
-                this.addToLog(`The ${entity.name} could not move!`);
-                this.advanceNpcTurn();
+        if (this.entities[i].type === "npc") {
+            this.npcsTurn.push(this.entities[i]);
+            const npcIsAggro = this.checkNpcAggro(this.entities[i]);
+            if(!npcIsAggro.previousAggroState && npcIsAggro.isAggro) {
+                this.countNpcsAggroed++;
+                this.pulseAggroCircle(this.entities[i], () => {
+                    if(this.countNpcsAggroed === 0) {
+                        this.advanceNpcTurn();
+                    }
+                });
             }
         }
-    } else {
+    }
+    if (this.countNpcsAggroed === 0) {
         this.advanceNpcTurn();
+    }
+}
+
+   advanceNpcTurn() {
+    if (this.npcTurnIndex < this.npcsTurn.length) {
+      const npcTurnNow = this.npcTurnIndex;
+      this.npcTurnIndex++;
+      if (this.npcsTurn[npcTurnNow].isAggro) {
+        this.time.delayedCall(this.globalPauseTime, () =>
+            this.processNpcAttack(this.npcsTurn[npcTurnNow]),
+            );
+      } else {
+        this.advanceNpcTurn();
+      }
+    } else {
+      this.isPlayerTurn = true;
+    }
+  }
+
+  checkNpcAggro(entity) {
+    const previousAggroState = entity.isAggro;
+    const distance =
+      this.checkRadiusDistance(entity.location, this.player.location) -
+      this.gridSize / 2;
+    if (distance <= this.globalAggroCellDistance) {
+      entity.isAggro = true;
+    }
+    return {
+      previousAggroState: previousAggroState,
+      isAggro: entity.isAggro,
+    };
+  }
+
+    pulseAggroCircle(entity, callback) {
+        this.tweens.add({
+            targets: entity.aggroCircle, // which object(s) to animate
+            strokeAlpha: 0.8, // the property to animate, and its target value
+            fillAlpha: 0.15, // second property to animate
+            duration: 250, // how long one animation takes, in ms
+            yoyo: true, // play forward, then automatically reverse back
+            repeat: 1, // how many additional times to repeat (1 = plays twice total)
+            ease: "Sine.easeInOut", // the shape of the animation curve over time
+            onComplete: () => this.tweens.add({
+                targets: entity.aggroCircle, // which object(s) to animate
+                strokeAlpha: 0, // the property to animate, and its target value
+                fillAlpha: 0, // second property to animate
+                duration: 100, // how long one animation takes, in ms
+                yoyo: false, // play forward, then automatically reverse back
+                repeat: 0, // how many additional times to repeat (1 = plays twice total)
+                ease: "Sine.easeInOut", // the shape of the animation curve over time
+                onComplete: () => {
+                    entity.aggroCircle.destroy();
+                    this.countNpcsAggroed--;
+                    callback();
+                },
+            })
+        });
+    }
+
+  processNpcAttack(entity) {
+    const absDistanceX = Math.abs(this.player.location.x - entity.location.x);
+    const absDistanceY = Math.abs(this.player.location.y - entity.location.y);
+
+    //If npc is an adjacent, start lunge attack
+    if (
+      this.isAdjacent(absDistanceX, absDistanceY) &&
+      entity.attackType === "melee"
+    ) {
+      //determine which axis the npc is attacking on
+      if (absDistanceX === 0) {
+        entity.axis = "y";
+      } else {
+        entity.axis = "x";
+      }
+      //determine the direction the npc is attacking
+      entity.direction = Math.sign(
+        this.player.location[entity.axis] - entity.location[entity.axis],
+      );
+      this.startMeleeLunge(entity);
+
+      //start Wizard attack
+    } else if (
+      this.isAdjacent(absDistanceX, absDistanceY) &&
+      entity.attackType === "spell"
+    ) {
+      //calculate damage and set variable if npc died
+      this.npcAttack(entity);
+      this.advanceNpcTurn();
+    } else {
+      //determine if distance along x or y axis is bigger
+      const distanceX = this.player.location.x - entity.location.x;
+      const distanceY = this.player.location.y - entity.location.y;
+      if (absDistanceX > absDistanceY) {
+        entity.axis = "x";
+        entity.direction = Math.sign(distanceX);
+      }
+      if (absDistanceX < absDistanceY) {
+        entity.axis = "y";
+        entity.direction = Math.sign(distanceY);
+      }
+      if (absDistanceX === absDistanceY) {
+        entity.axis = Math.random() < 0.5 ? "x" : "y";
+        if (entity.axis === "x") {
+          entity.direction = Math.sign(distanceX);
+        } else {
+          entity.direction = Math.sign(distanceY);
+        }
+      }
+      entity.targetTile =
+        entity.location[entity.axis] + entity.direction * this.gridSize;
+      //check if npc can move
+      if (this.checkCanMoveTo(entity, entity.axis, entity.direction)) {
+        //set NPC isMoving
+        entity.isMoving = true;
+      } else {
+        this.addToLog(`The ${entity.name} could not move!`);
+        this.advanceNpcTurn();
+      }
     }
   }
 
@@ -642,6 +718,25 @@ class DungeonScene extends Phaser.Scene {
       entity.targetTile > this.gridPosition(this.axisConfig[axis].max);
     //return false if entity can't move or true if they can move
     return !(hitsNpc || hitsWall || hitsBoundary);
+  }
+
+  createNpcAggroCircle(entity) {
+    entity.aggroCircle = this.add.circle(
+      entity.location.x,
+      entity.location.y,
+      this.globalAggroCellDistance,
+      this.entityColors.aggroCells,
+    );
+    entity.aggroCircle.setStrokeStyle(4, this.entityColors.aggroCells, 0.4);
+    entity.aggroCircle.setFillStyle(this.entityColors.aggroCells, 0.1);
+    entity.aggroCircle.setDepth(this.renderDepth.aggroCircle);
+  }
+
+  //function to calculate and return Pythagoras hypotenuse
+  checkRadiusDistance(npc, destination) {
+    const distanceX = npc.x - destination.x;
+    const distanceY = npc.y - destination.y;
+    return Math.hypot(distanceX, distanceY);
   }
 }
 
