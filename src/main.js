@@ -51,7 +51,8 @@ class DungeonScene extends Phaser.Scene {
     this.npcTurnIndex = 0;
     this.countNpcsAggroed = 0;
     this.globalAggroCellDistance = 6 * this.gridSize;
-
+    this.globalCastRange = 4 * this.gridSize;
+    this.castSpellTurns = 3;
     this.renderDepth = {
       map: 10,
       aggroCircle: 20,
@@ -482,8 +483,13 @@ class DungeonScene extends Phaser.Scene {
         baseDamage: { melee: { min: 5, max: 10 }, spell: { min: 10, max: 20 } },
         critChance: 0.2,
         attackType: "spell",
+        castProgress: 0,
+        castRadius: this.gridSize / 2,
+        castCenter: {x: null, y: null},
+        castOrbs: [] //array for holding circles
       };
     }
+
     this.entities.push(newNpc);
     this.createHighlight(newNpc);
     this.createNpcAggroCircle(newNpc);
