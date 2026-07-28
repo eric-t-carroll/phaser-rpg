@@ -60,6 +60,7 @@ Creating a turn based dungeon crawler in Phaser, with an old school flavour and 
 - Multiple maps or levels.
 - NPCs patrol
 - when not in combat - should the player move more freely, or potentially even just with a smaller pause delay (design decision to be confirmed)
+- Entity cell highlight briefly flashes to white when the entity takes damage.
 
 
 ### Longer-Term / Stretch Goals

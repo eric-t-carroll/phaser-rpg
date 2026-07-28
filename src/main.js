@@ -41,7 +41,7 @@ class DungeonScene extends Phaser.Scene {
       Wizard: 0x0000ff,
       aggroCells: 0x8000ff,
     };
-    this.healthShrinkFloor = 0.20;
+    this.healthShrinkFloor = 0.2;
     this.healthShrinkCeiling = 0.84;
     this.isPlayerTurn = true;
     this.highlightAlpha = 0.25;
@@ -53,6 +53,8 @@ class DungeonScene extends Phaser.Scene {
     this.globalAggroCellDistance = 6 * this.gridSize;
     this.globalCastRange = 4 * this.gridSize;
     this.castSpellTurns = 3;
+    this.spellOrbColor = 0xff00ff;
+    this.spellRotationSpeed = 1.3;
     this.renderDepth = {
       map: 10,
       aggroCircle: 20,
@@ -129,7 +131,7 @@ class DungeonScene extends Phaser.Scene {
     }
     //create array for locations and call function to place Wizards
     this.locationWizards = [
-      { x: this.gridPosition(15), y: this.gridPosition(15) },
+      { x: this.gridPosition(5), y: this.gridPosition(5) },
       { x: this.gridPosition(9), y: this.gridPosition(22) },
     ];
     for (let i = 0; i < this.locationWizards.length; i++) {
@@ -286,6 +288,22 @@ class DungeonScene extends Phaser.Scene {
     this.entities.forEach((npc) => {
       this.healthShrink(npc.shape, npc.maxHealth, npc.currentHealth);
     });
+
+    //sync orbs to rotating animation
+    //increase every orb angle by rotation speed
+    this.entities.forEach(
+      (entity) =>
+        entity.name === "Wizard" &&
+        entity.castOrbs.forEach((orb) => {
+          orb.orbAngle += this.spellRotationSpeed;
+          orb.orbShape.x =
+            entity.location.x +
+            entity.castRadius * Math.cos(orb.orbAngle * (Math.PI / 180));
+          orb.orbShape.y =
+            entity.location.y +
+            entity.castRadius * Math.sin(orb.orbAngle * (Math.PI / 180));
+        }),
+    );
 
     for (let i = 0; i < this.entities.length; i++) {
       //if entity isMoving, move
@@ -485,8 +503,7 @@ class DungeonScene extends Phaser.Scene {
         attackType: "spell",
         castProgress: 0,
         castRadius: this.gridSize / 2,
-        castCenter: {x: null, y: null},
-        castOrbs: [] //array for holding circles
+        castOrbs: [], //array for holding circles
       };
     }
 
@@ -568,32 +585,32 @@ class DungeonScene extends Phaser.Scene {
     this.npcsTurn = [];
     this.npcTurnIndex = 0;
     for (let i = 0; i < this.entities.length; i++) {
-        if (this.entities[i].type === "npc") {
-            this.npcsTurn.push(this.entities[i]);
-            const npcIsAggro = this.checkNpcAggro(this.entities[i]);
-            if(!npcIsAggro.previousAggroState && npcIsAggro.isAggro) {
-                this.countNpcsAggroed++;
-                this.pulseAggroCircle(this.entities[i], () => {
-                    if(this.countNpcsAggroed === 0) {
-                        this.advanceNpcTurn();
-                    }
-                });
+      if (this.entities[i].type === "npc") {
+        this.npcsTurn.push(this.entities[i]);
+        const npcIsAggro = this.checkNpcAggro(this.entities[i]);
+        if (!npcIsAggro.previousAggroState && npcIsAggro.isAggro) {
+          this.countNpcsAggroed++;
+          this.pulseAggroCircle(this.entities[i], () => {
+            if (this.countNpcsAggroed === 0) {
+              this.advanceNpcTurn();
             }
+          });
         }
+      }
     }
     if (this.countNpcsAggroed === 0) {
-        this.advanceNpcTurn();
+      this.advanceNpcTurn();
     }
-}
+  }
 
-   advanceNpcTurn() {
+  advanceNpcTurn() {
     if (this.npcTurnIndex < this.npcsTurn.length) {
       const npcTurnNow = this.npcTurnIndex;
       this.npcTurnIndex++;
       if (this.npcsTurn[npcTurnNow].isAggro) {
         this.time.delayedCall(this.globalPauseTime, () =>
-            this.processNpcAttack(this.npcsTurn[npcTurnNow]),
-            );
+          this.processNpcAttack(this.npcsTurn[npcTurnNow]),
+        );
       } else {
         this.advanceNpcTurn();
       }
@@ -616,90 +633,77 @@ class DungeonScene extends Phaser.Scene {
     };
   }
 
-    pulseAggroCircle(entity, callback) {
+  pulseAggroCircle(entity, callback) {
+    this.tweens.add({
+      targets: entity.aggroCircle, // which object(s) to animate
+      strokeAlpha: 0.8, // the property to animate, and its target value
+      fillAlpha: 0.15, // second property to animate
+      duration: 250, // how long one animation takes, in ms
+      yoyo: true, // play forward, then automatically reverse back
+      repeat: 1, // how many additional times to repeat (1 = plays twice total)
+      ease: "Sine.easeInOut", // the shape of the animation curve over time
+      onComplete: () =>
         this.tweens.add({
-            targets: entity.aggroCircle, // which object(s) to animate
-            strokeAlpha: 0.8, // the property to animate, and its target value
-            fillAlpha: 0.15, // second property to animate
-            duration: 250, // how long one animation takes, in ms
-            yoyo: true, // play forward, then automatically reverse back
-            repeat: 1, // how many additional times to repeat (1 = plays twice total)
-            ease: "Sine.easeInOut", // the shape of the animation curve over time
-            onComplete: () => this.tweens.add({
-                targets: entity.aggroCircle, // which object(s) to animate
-                strokeAlpha: 0, // the property to animate, and its target value
-                fillAlpha: 0, // second property to animate
-                duration: 100, // how long one animation takes, in ms
-                yoyo: false, // play forward, then automatically reverse back
-                repeat: 0, // how many additional times to repeat (1 = plays twice total)
-                ease: "Sine.easeInOut", // the shape of the animation curve over time
-                onComplete: () => {
-                    entity.aggroCircle.destroy();
-                    this.countNpcsAggroed--;
-                    callback();
-                },
-            })
-        });
-    }
+          targets: entity.aggroCircle, // which object(s) to animate
+          strokeAlpha: 0, // the property to animate, and its target value
+          fillAlpha: 0, // second property to animate
+          duration: 100, // how long one animation takes, in ms
+          yoyo: false, // play forward, then automatically reverse back
+          repeat: 0, // how many additional times to repeat (1 = plays twice total)
+          ease: "Sine.easeInOut", // the shape of the animation curve over time
+          onComplete: () => {
+            entity.aggroCircle.destroy();
+            this.countNpcsAggroed--;
+            callback();
+          },
+        }),
+    });
+  }
 
   processNpcAttack(entity) {
     const absDistanceX = Math.abs(this.player.location.x - entity.location.x);
     const absDistanceY = Math.abs(this.player.location.y - entity.location.y);
 
-    //If npc is an adjacent, start lunge attack
-    if (
-      this.isAdjacent(absDistanceX, absDistanceY) &&
-      entity.attackType === "melee"
-    ) {
-      //determine which axis the npc is attacking on
-      if (absDistanceX === 0) {
-        entity.axis = "y";
-      } else {
-        entity.axis = "x";
-      }
-      //determine the direction the npc is attacking
-      entity.direction = Math.sign(
-        this.player.location[entity.axis] - entity.location[entity.axis],
-      );
-      this.startMeleeLunge(entity);
-
-      //start Wizard attack
-    } else if (
-      this.isAdjacent(absDistanceX, absDistanceY) &&
-      entity.attackType === "spell"
-    ) {
-      //calculate damage and set variable if npc died
-      this.npcAttack(entity);
-      this.advanceNpcTurn();
-    } else {
-      //determine if distance along x or y axis is bigger
-      const distanceX = this.player.location.x - entity.location.x;
-      const distanceY = this.player.location.y - entity.location.y;
-      if (absDistanceX > absDistanceY) {
-        entity.axis = "x";
-        entity.direction = Math.sign(distanceX);
-      }
-      if (absDistanceX < absDistanceY) {
-        entity.axis = "y";
-        entity.direction = Math.sign(distanceY);
-      }
-      if (absDistanceX === absDistanceY) {
-        entity.axis = Math.random() < 0.5 ? "x" : "y";
-        if (entity.axis === "x") {
-          entity.direction = Math.sign(distanceX);
+    //Barbarian branch
+    if (entity.attackType === "melee") {
+      //if adjacent to the player
+      if (this.isAdjacent(absDistanceX, absDistanceY)) {
+        if (absDistanceX === 0) {
+          entity.axis = "y";
         } else {
-          entity.direction = Math.sign(distanceY);
+          entity.axis = "x";
         }
-      }
-      entity.targetTile =
-        entity.location[entity.axis] + entity.direction * this.gridSize;
-      //check if npc can move
-      if (this.checkCanMoveTo(entity, entity.axis, entity.direction)) {
-        //set NPC isMoving
-        entity.isMoving = true;
+        //assign forwards or backwards direction to entity object
+        entity.direction = Math.sign(
+          this.player.location[entity.axis] - entity.location[entity.axis],
+        );
+        //start melee attack animation
+        this.startMeleeLunge(entity);
       } else {
-        this.addToLog(`The ${entity.name} could not move!`);
-        this.advanceNpcTurn();
+        //placeholder: shared chase/movement logic
+        this.chaseTarget(entity);
+      }
+
+      //Wizard branch
+    } else if (entity.attackType === "spell") {
+      if (!this.checkShouldMove(entity)) {
+        //if in range start casting spell orbs (start of cast or mid cast)
+        if (entity.castProgress < this.castSpellTurns) {
+          this.createSpellOrb(entity);
+          this.advanceNpcTurn();
+        } else {
+          //castProgress has reached castSpellTurns — fire!
+          //placeholder: fire animation, then damage + advanceNpcTurn
+        }
+      } else {
+        //out of range — abandon any in-progress cast, then chase
+        if (entity.castProgress > 0) {
+          entity.castOrbs.forEach((orb) => orb.orbShape.destroy());
+          entity.castOrbs = [];
+          entity.castProgress = 0;
+        }
+        //function to check entity can move, then set isMoving flag to true
+        this.chaseTarget(entity);
       }
     }
   }
@@ -743,6 +747,78 @@ class DungeonScene extends Phaser.Scene {
     const distanceX = npc.x - destination.x;
     const distanceY = npc.y - destination.y;
     return Math.hypot(distanceX, distanceY);
+  }
+
+  //function to determine if an npc should move closer or stay where they are
+  checkShouldMove(entity) {
+    const engagementDistance =
+      entity.attackType === "melee" ? this.gridSize : this.globalCastRange;
+    const distance = this.checkRadiusDistance(
+      entity.location,
+      this.player.location,
+    );
+    return distance > engagementDistance;
+  }
+
+  chaseTarget(entity) {
+    //calculate x and y distances + absolute distance values
+    const distanceX = this.player.location.x - entity.location.x;
+    const distanceY = this.player.location.y - entity.location.y;
+    const absDistanceX = Math.abs(distanceX);
+    const absDistanceY = Math.abs(distanceY);
+    //check if moving forwards or backwards along x
+    if (absDistanceX > absDistanceY) {
+      entity.axis = "x";
+      entity.direction = Math.sign(distanceX);
+    }
+    //check if moving forwards or backwards along y
+    if (absDistanceX < absDistanceY) {
+      entity.axis = "y";
+      entity.direction = Math.sign(distanceY);
+    }
+    //if ditances to target are equal along x and y, then pick a random direction
+    if (absDistanceX === absDistanceY) {
+      entity.axis = Math.random() < 0.5 ? "x" : "y";
+      entity.direction =
+        entity.axis === "x" ? Math.sign(distanceX) : Math.sign(distanceY);
+    }
+    //calculate targetTile x and y location
+    entity.targetTile =
+      entity.location[entity.axis] + entity.direction * this.gridSize;
+    //if target location is not a npc, wall or screen boundary - set isMoving flag
+    if (this.checkCanMoveTo(entity, entity.axis, entity.direction)) {
+      entity.isMoving = true;
+    } else {
+      //log confirmation that entity can't move and advance turn
+      this.addToLog(`The ${entity.name} could not move!`);
+      this.advanceNpcTurn();
+    }
+  }
+
+  createSpellOrb(entity) {
+    //create object that is a spell orb
+    const newOrb = {
+      orbAngle: null,
+      orbShape: this.add
+        .circle(
+          entity.location.x,
+          entity.location.y,
+          this.gridSize / 10,
+          this.spellOrbColor,
+        )
+        .setDepth(this.renderDepth.spellEffect),
+    };
+    if (entity.castProgress === 0) {
+      newOrb.orbAngle = entity.castProgress * (360 / this.castSpellTurns);
+    } else {
+      newOrb.orbAngle =
+        entity.castOrbs[entity.castProgress - 1].orbAngle +
+        360 / this.castSpellTurns;
+    }
+    //push orb object into entity array
+    entity.castOrbs.push(newOrb);
+    //increment castProgress
+    entity.castProgress++;
   }
 }
 
