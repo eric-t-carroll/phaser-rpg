@@ -40,13 +40,13 @@ Creating a turn based dungeon crawler in Phaser, with an old school flavour and 
  - Health-shrink now remaps between a floor (~10-20%) and ceiling (~85%) instead of the raw 0-100% range, so a shape is never fully invisible right before death, and never fills the entire cell at full health.
  - Explicit render-depth layering (`renderDepth`: map → aggro ring → entity highlight → entity shape → spell effects), replacing ad-hoc `sendToBack()` calls, so future visual layers (projectiles, cast-range indicators) have a clear place to slot in.
  - Internal cleanup: extracted `isAdjacent()`, `checkRadiusDistance()`, and `checkNpcAggro()` as small reusable functions; renamed `processNpcTurn` to `processNpcAttack` to reflect its narrowed purpose; renamed misleading `directionX`/`directionY` to `absDistanceX`/`absDistanceY`.
+ - Wizards approach until in spell range and then they cast fireballs
+ - Fireball animation and damage
 
 ### Planned / In Progress
 - Aggro line-of-sight (NPCs should only engage if they can see/reach the player).
 - When aggro'ed, NPCs shout to warn other NPCs within close range. Multiple grouped NPCs aggro at the same time.
 - Add NPC shout to combat log.
-- Wizards approach until in spell range and then they cast fireballs
-- Fireball animation and damage
 - Opportunity attacks (free hit if you flee an adjacent melee NPC).
 - Designed maps with actual rooms, not just an open bordered area.
 - Combat log color-coding by attack type/outcome.
@@ -61,6 +61,8 @@ Creating a turn based dungeon crawler in Phaser, with an old school flavour and 
 - NPCs patrol
 - when not in combat - should the player move more freely, or potentially even just with a smaller pause delay (design decision to be confirmed)
 - Entity cell highlight briefly flashes to white when the entity takes damage.
+- Improve orb animation polish pass (fade in, pulse, choose best color)
+- Highlight Wizard cast range with a circle
 
 
 ### Longer-Term / Stretch Goals

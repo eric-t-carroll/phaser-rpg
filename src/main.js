@@ -51,10 +51,12 @@ class DungeonScene extends Phaser.Scene {
     this.npcTurnIndex = 0;
     this.countNpcsAggroed = 0;
     this.globalAggroCellDistance = 6 * this.gridSize;
-    this.globalCastRange = 4 * this.gridSize;
+    this.globalCastRange = 6 * this.gridSize;
     this.castSpellTurns = 3;
     this.spellOrbColor = 0xff00ff;
     this.spellRotationSpeed = 1.3;
+    this.globalOrbSpeed = 1.5;
+    this.orbArrivalDistance = 5;
     this.renderDepth = {
       map: 10,
       aggroCircle: 20,
@@ -119,8 +121,9 @@ class DungeonScene extends Phaser.Scene {
 
     //create array for locations and call function to place Barbarians
     this.locationBarbarians = [
-      { x: this.gridPosition(13), y: this.gridPosition(7) },
-      { x: this.gridPosition(22), y: this.gridPosition(18) },
+      { x: this.gridPosition(15), y: this.gridPosition(10) },
+      { x: this.gridPosition(18), y: this.gridPosition(11) },
+      { x: this.gridPosition(13), y: this.gridPosition(14) },
     ];
     for (let i = 0; i < this.locationBarbarians.length; i++) {
       this.createNpc(
@@ -131,8 +134,8 @@ class DungeonScene extends Phaser.Scene {
     }
     //create array for locations and call function to place Wizards
     this.locationWizards = [
-      { x: this.gridPosition(5), y: this.gridPosition(5) },
-      { x: this.gridPosition(9), y: this.gridPosition(22) },
+      { x: this.gridPosition(20), y: this.gridPosition(17) },
+      { x: this.gridPosition(15), y: this.gridPosition(22) },
     ];
     for (let i = 0; i < this.locationWizards.length; i++) {
       this.createNpc(
@@ -358,6 +361,30 @@ class DungeonScene extends Phaser.Scene {
             this.endMeleeLunge(this.entities[i]);
           },
         );
+      }
+
+      // if firing spell orbs
+      if (this.entities[i].firingOrbs) {
+        //check there are orbs to fire
+        if (this.entities[i].fireOrb) {            
+            //if orb is not close enough to hit player
+            if (this.checkRadiusDistance(this.entities[i].fireOrb.orbShape, this.player.location) >= this.orbArrivalDistance) {
+                //move orb closer to player
+                this.entities[i].fireOrb.orbShape.x += this.globalOrbSpeed * Math.cos(this.entities[i].fireOrb.angleToPlayer);
+                this.entities[i].fireOrb.orbShape.y += this.globalOrbSpeed * Math.sin(this.entities[i].fireOrb.angleToPlayer);    
+            //else orb is close enough, calculate damage and destroy spell orb > then start firing the next orb
+            } else {
+              this.npcAttack(this.entities[i]);
+                this.entities[i].fireOrb.orbShape.destroy();
+                this.initiateFireOrb(this.entities[i]);
+            }
+        //if no orbs left to fire reset spell cast and start next npc turn
+        } else {
+            this.entities[i].isAttacking = false;
+            this.entities[i].firingOrbs = false;
+            this.entities[i].castProgress = 0;
+            this.advanceNpcTurn();
+        }
       }
     }
   }
@@ -684,7 +711,7 @@ class DungeonScene extends Phaser.Scene {
         this.chaseTarget(entity);
       }
 
-      //Wizard branch
+    //Wizard branch
     } else if (entity.attackType === "spell") {
       if (!this.checkShouldMove(entity)) {
         //if in range start casting spell orbs (start of cast or mid cast)
@@ -692,8 +719,9 @@ class DungeonScene extends Phaser.Scene {
           this.createSpellOrb(entity);
           this.advanceNpcTurn();
         } else {
-          //castProgress has reached castSpellTurns — fire!
-          //placeholder: fire animation, then damage + advanceNpcTurn
+            //turns spent casting === castSpellTurns > fire orbs
+            entity.isAttacking = true;
+            this.initiateFireOrb(entity);
         }
       } else {
         //out of range — abandon any in-progress cast, then chase
@@ -820,6 +848,21 @@ class DungeonScene extends Phaser.Scene {
     //increment castProgress
     entity.castProgress++;
   }
+
+  initiateFireOrb(entity) {
+    //splice an orb out of the entity castOrbs array so they can be fired without circling/syncing around the Wizard
+    if (entity.castOrbs.length === 0) {
+      entity.fireOrb = null;
+      return;
+    }
+    entity.fireOrb = entity.castOrbs.splice(0, 1)[0];
+    //calculate x and y distance from orb to player
+    const DistanceX = this.player.location.x - entity.fireOrb.orbShape.x;
+    const DistanceY = this.player.location.y - entity.fireOrb.orbShape.y;
+    entity.fireOrb.angleToPlayer = Math.atan2(DistanceY, DistanceX); //takes y difference and x difference
+    //flag entity as firing orbs
+    entity.firingOrbs = true;
+    }
 }
 
 //create GameOverScene
