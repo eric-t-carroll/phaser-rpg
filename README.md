@@ -1,6 +1,11 @@
 # Phaser-RPG
 
 ---
+## Scope Update 30.7.2026
+Decided to wrap up making this game to move onto other projects. The main goal was to just build something after doing a lot of Javascript courses.
+Mission accomplished.
+
+---
 
 ## What is it?
 Creating a turn based dungeon crawler in Phaser, with an old school flavour and basic geometry for graphics. First go at creating something in Javascript.
@@ -20,7 +25,7 @@ Creating a turn based dungeon crawler in Phaser, with an old school flavour and 
 ### Built So Far
 - Grid-based movement with smooth tile-to-tile animation.
 - Wall collision and map boundaries.
-- Class-based Phaser scene architecture (`DungeonScene`, `GameOverScene`).
+- Class-based Phaser scene architecture (`DungeonScene`, `MenuScene`).
 - Unified entity system (player + NPCs share a common data structure).
 - Multiple NPC types (melee Barbarian, spellcaster Wizard) with distinct shapes.
 - Melee lunge-and-retreat attack animation, shared between player and NPCs.
@@ -29,7 +34,7 @@ Creating a turn based dungeon crawler in Phaser, with an old school flavour and 
 - Sequential turn-based combat (player acts, then each NPC acts in order).
 - NPC AI: chase the player when not adjacent, attack when in range.
 - Combat log (styled as a retro terminal readout).
-- Death handling with a dedicated Game Over scene and restart flow.
+- Death handling with a dedicated Menu scene and restart flow.
 - Turn pacing (delays between actions for readability).
 - Cell highlighting — a translucent, entity-colored square with a bolder border renders behind each entity's shape, anchored to their grid cell. Keeps the occupied tile visible even when `healthShrink` has shrunk an entity's shape down near death. Stays in place during lunge attacks, since the lunge only animates the entity's own shape.
  - Aggro range (no line of sight).
@@ -42,6 +47,9 @@ Creating a turn based dungeon crawler in Phaser, with an old school flavour and 
  - Internal cleanup: extracted `isAdjacent()`, `checkRadiusDistance()`, and `checkNpcAggro()` as small reusable functions; renamed `processNpcTurn` to `processNpcAttack` to reflect its narrowed purpose; renamed misleading `directionX`/`directionY` to `absDistanceX`/`absDistanceY`.
  - Wizards approach until in spell range and then they cast fireballs
  - Fireball animation and damage
+ - Win condition (kill all NPCs → win screen)
+ - Title/menu screen (MenuScene, replacing the old GameOverScene approach)
+ - Wizard death-mid-cast cleanup (orbs properly destroyed if killed while casting)
 
 ### Planned / In Progress
 - Aggro line-of-sight (NPCs should only engage if they can see/reach the player).
@@ -55,7 +63,6 @@ Creating a turn based dungeon crawler in Phaser, with an old school flavour and 
 - Leveling and XP.
 - Camera follow for maps larger than the screen (plus scouting/pan-to-NPC extensions).
 - Fog of war.
-- Title screen / main menu.
 - Save/load.
 - Multiple maps or levels.
 - NPCs patrol
@@ -86,10 +93,6 @@ Creating a turn based dungeon crawler in Phaser, with an old school flavour and 
   then the other axis, then give up for that turn if both are blocked — no
   smarter pathing or fallback. Flagged for revisiting if it looks/feels bad
   in practice with more complex maps.
-- When npcs aggro range is overlapping and one moves, the cells where it was do not 
-render with a new highlight, if it is space where npc 1 no longer has aggro. This is
-because aggro highlights for each npx are created at the end of every move. The blank
-space needs to have highlights created for the npc that is not moving.
 
 ### Fixed
 - **Plain-object Phaser scenes don't support custom methods.** Custom

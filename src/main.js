@@ -1,5 +1,113 @@
 import Phaser from "phaser";
 
+//create Menu Scene
+class MenuScene extends Phaser.Scene {
+  constructor() {
+    super({ key: "MenuScene" });
+  }
+
+  init(data) {
+    if (data.result) {
+      this.result = data.result;
+    } else {
+      this.result = "new";
+    }
+  }
+
+  create() {
+    let newGameText = ``;
+    let asciiImage = ``;
+
+    if (this.result === "new") {
+      newGameText = "New game - Press Enter to start";
+      asciiImage = `
+        ___________
+       '._==_==_=_.'
+       .-\\\:      /-.
+      | (|:.     |) |
+       '-|:.     |-'
+         \\\::.    /
+          '::. .'
+            ) (
+          _.' '._
+         """""""""
+
+     ⚔   D U N G E O N   ⚔
+       O F   D E S P A I R
+    ____/\\____/\\____/\\____;
+`;
+    }
+
+    if (this.result === "dead") {
+      newGameText = "You failed - Press Enter to try again";
+      asciiImage = `
+        _.-'''''-._  
+      .'   _____   '. 
+     /   .'     '.   \\
+    |   /  R.I.P  \\   |
+    |  |           |  |
+    |  |    YOU    |  |
+    |  |    DIED   |  |
+    |  |           |  |
+    |   \\_________/   |
+    |                 |
+    |_________________|
+   /___________________\\
+  |_____________________|
+~~~^~~~^~~~^~~~^~~~^~~~^~~~
+`;
+    }
+
+    if (this.result === "win") {
+      newGameText = "You win - Press Enter to start a new game";
+      asciiImage = `
+       |\\              /|
+       | \\            / |
+       |  \\          /  |
+       |   \\        /   |
+        \\   \\      /    /
+         \\   \\    /    /
+          \\   \\  /    /
+           \\   \\     /
+            \\   \\   /
+             \\   \\ /
+              \\   \\
+               \\   \\
+              . \\   \\
+             /   \\   \\
+            /   / \\   \\
+           /   /   \\   \\
+          /   /     \\   \\
+         /   /       \\   \\
+        /                 \\
+
+    V I C T O R Y   I S   Y O U R S
+`;
+    }
+
+    let asciiImageBlob = this.add.text(620, 620, asciiImage, {
+      fontFamily: "Courier New",
+      fontSize: "24px",
+      color: "#00ff00",
+    });
+    asciiImageBlob.setOrigin(0.5, 0.5);
+
+    let startGameText = this.add.text(620, 900, newGameText, {
+      fontFamily: "Courier New",
+      fontSize: "24px",
+      color: "#00ff00",
+    });
+    startGameText.setOrigin(0.5, 0.5);
+    this.enterKey = this.input.keyboard.addKey("ENTER");
+  }
+
+  update() {
+    if (Phaser.Input.Keyboard.JustDown(this.enterKey)) {
+      this.scene.start("DungeonScene");
+    }
+  }
+}
+
 //create Dungeon Scene
 class DungeonScene extends Phaser.Scene {
   constructor() {
@@ -122,7 +230,6 @@ class DungeonScene extends Phaser.Scene {
     //create array for locations and call function to place Barbarians
     this.locationBarbarians = [
       { x: this.gridPosition(15), y: this.gridPosition(10) },
-      { x: this.gridPosition(18), y: this.gridPosition(11) },
       { x: this.gridPosition(13), y: this.gridPosition(14) },
     ];
     for (let i = 0; i < this.locationBarbarians.length; i++) {
@@ -261,9 +368,18 @@ class DungeonScene extends Phaser.Scene {
             this.player.attackTarget.shape.destroy();
             this.player.attackTarget.highlight.destroy();
             this.player.attackTarget.aggroCircle.destroy();
+            if (this.player.attackTarget.name === 'Wizard') {
+              this.player.attackTarget.castOrbs.forEach((orb) => orb.orbShape.destroy());
+            }
             this.entities = this.entities.filter(
               (npc) => npc !== this.player.attackTarget,
             );
+            if (
+              this.entities.filter((entity) => entity.type === "npc").length ===
+              0
+            ) {
+              this.scene.start("MenuScene", { result: "win" });
+            }
           }
 
           //change attack phase to moving away from npc
@@ -366,24 +482,33 @@ class DungeonScene extends Phaser.Scene {
       // if firing spell orbs
       if (this.entities[i].firingOrbs) {
         //check there are orbs to fire
-        if (this.entities[i].fireOrb) {            
-            //if orb is not close enough to hit player
-            if (this.checkRadiusDistance(this.entities[i].fireOrb.orbShape, this.player.location) >= this.orbArrivalDistance) {
-                //move orb closer to player
-                this.entities[i].fireOrb.orbShape.x += this.globalOrbSpeed * Math.cos(this.entities[i].fireOrb.angleToPlayer);
-                this.entities[i].fireOrb.orbShape.y += this.globalOrbSpeed * Math.sin(this.entities[i].fireOrb.angleToPlayer);    
+        if (this.entities[i].fireOrb) {
+          //if orb is not close enough to hit player
+          if (
+            this.checkRadiusDistance(
+              this.entities[i].fireOrb.orbShape,
+              this.player.location,
+            ) >= this.orbArrivalDistance
+          ) {
+            //move orb closer to player
+            this.entities[i].fireOrb.orbShape.x +=
+              this.globalOrbSpeed *
+              Math.cos(this.entities[i].fireOrb.angleToPlayer);
+            this.entities[i].fireOrb.orbShape.y +=
+              this.globalOrbSpeed *
+              Math.sin(this.entities[i].fireOrb.angleToPlayer);
             //else orb is close enough, calculate damage and destroy spell orb > then start firing the next orb
-            } else {
-              this.npcAttack(this.entities[i]);
-                this.entities[i].fireOrb.orbShape.destroy();
-                this.initiateFireOrb(this.entities[i]);
-            }
-        //if no orbs left to fire reset spell cast and start next npc turn
+          } else {
+            this.npcAttack(this.entities[i]);
+            this.entities[i].fireOrb.orbShape.destroy();
+            this.initiateFireOrb(this.entities[i]);
+          }
+          //if no orbs left to fire reset spell cast and start next npc turn
         } else {
-            this.entities[i].isAttacking = false;
-            this.entities[i].firingOrbs = false;
-            this.entities[i].castProgress = 0;
-            this.advanceNpcTurn();
+          this.entities[i].isAttacking = false;
+          this.entities[i].firingOrbs = false;
+          this.entities[i].castProgress = 0;
+          this.advanceNpcTurn();
         }
       }
     }
@@ -603,7 +728,7 @@ class DungeonScene extends Phaser.Scene {
     if (playerDied) {
       this.addToLog("You have died a brutal death!");
       this.gameOver = true;
-      this.scene.start("GameOverScene");
+      this.scene.start("MenuScene", { result: "dead" });
     }
   }
 
@@ -711,7 +836,7 @@ class DungeonScene extends Phaser.Scene {
         this.chaseTarget(entity);
       }
 
-    //Wizard branch
+      //Wizard branch
     } else if (entity.attackType === "spell") {
       if (!this.checkShouldMove(entity)) {
         //if in range start casting spell orbs (start of cast or mid cast)
@@ -719,9 +844,9 @@ class DungeonScene extends Phaser.Scene {
           this.createSpellOrb(entity);
           this.advanceNpcTurn();
         } else {
-            //turns spent casting === castSpellTurns > fire orbs
-            entity.isAttacking = true;
-            this.initiateFireOrb(entity);
+          //turns spent casting === castSpellTurns > fire orbs
+          entity.isAttacking = true;
+          this.initiateFireOrb(entity);
         }
       } else {
         //out of range — abandon any in-progress cast, then chase
@@ -862,54 +987,6 @@ class DungeonScene extends Phaser.Scene {
     entity.fireOrb.angleToPlayer = Math.atan2(DistanceY, DistanceX); //takes y difference and x difference
     //flag entity as firing orbs
     entity.firingOrbs = true;
-    }
-}
-
-//create GameOverScene
-class GameOverScene extends Phaser.Scene {
-  constructor() {
-    super({ key: "GameOverScene" });
-  }
-
-  create() {
-    //display tombstone
-    const tombstoneText = `
-        _.-'''''-._  
-      .'   _____   '. 
-     /   .'     '.   \\
-    |   /  R.I.P  \\   |
-    |  |           |  |
-    |  |    YOU    |  |
-    |  |    DIED   |  |
-    |  |           |  |
-    |   \\_________/   |
-    |                 |
-    |_________________|
-   /___________________\\
-  |_____________________|
-~~~^~~~^~~~^~~~^~~~^~~~^~~~
-`;
-    const tombstoneAscii = this.add.text(620, 620, tombstoneText, {
-      fontFamily: "Courier New",
-      fontSize: "24px",
-      color: "#00ff00",
-    });
-    tombstoneAscii.setOrigin(0.5, 0.5);
-
-    const tryAgain = "Press Enter to try again";
-    const tryAgainText = this.add.text(620, 900, tryAgain, {
-      fontFamily: "Courier New",
-      fontSize: "24px",
-      color: "#00ff00",
-    });
-    tryAgainText.setOrigin(0.5, 0.5);
-    this.enterKey = this.input.keyboard.addKey("ENTER");
-  }
-
-  update() {
-    if (Phaser.Input.Keyboard.JustDown(this.enterKey)) {
-      this.scene.start("DungeonScene");
-    }
   }
 }
 
@@ -918,7 +995,7 @@ const phaserRpg = {
   height: 1240,
   width: 1240,
   parent: "app",
-  scene: [DungeonScene, GameOverScene],
+  scene: [MenuScene, DungeonScene],
 };
 
 //variable running the game
