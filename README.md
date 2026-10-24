@@ -79,10 +79,15 @@ Status: Complete (July 2026). Wrapped up to move on to other projects.
   move. Fixed by adding a player turn flag to ensure player could not take 
   their turn while NPCs were taking theirs.
 - **Aggro highlights did not render where they already previously were.** Caused
- by code that destroyed the highlight shape, but didn't destroy the highlight array.
- When checking if a highlight already existed, it was present even though it wasn't 
- being rendered. Fixed by redeclaring the highlight array every move, just before it 
- gets recreated.
+  by code that destroyed the highlight shape, but didn't destroy the highlight array.
+  When checking if a highlight already existed, it was present even though it wasn't 
+  being rendered. Fixed by redeclaring the highlight array every move, just before it 
+  gets recreated.
+- **Stack overflow in the sequential NPC turn system.** `advanceNpcTurn`
+  incremented its turn index *after* calling `processNpcTurn`, so any
+  recursive call (from a non-adjacent or spell-casting NPC) reprocessed
+  the same NPC endlessly. Fixed by capturing and incrementing the index
+  *before* the recursive call.
 - **Player accidentally processed by NPC-only movement logic.** A missing
   `type === "npc"` check let the player's own movement get picked up by 
   the generic NPC movement loop.
