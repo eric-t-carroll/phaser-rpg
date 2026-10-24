@@ -130,7 +130,7 @@ class DungeonScene extends Phaser.Scene {
       x: { other: "y", max: this.maxColumn },
       y: { other: "x", max: this.maxRow },
     };
-    this.globalMoveSpeed = 0.8;
+    this.globalMoveSpeed = 2.0;
     this.globalPauseTime = 400;
     this.combatLog = [];
     this.combatText = this.add.text(
@@ -162,8 +162,8 @@ class DungeonScene extends Phaser.Scene {
     this.globalCastRange = 6 * this.gridSize;
     this.castSpellTurns = 3;
     this.spellOrbColor = 0xff00ff;
-    this.spellRotationSpeed = 1.3;
-    this.globalOrbSpeed = 1.5;
+    this.spellRotationSpeed = 3;
+    this.globalOrbSpeed = 4;
     this.orbArrivalDistance = 5;
     this.renderDepth = {
       map: 10,
@@ -195,7 +195,7 @@ class DungeonScene extends Phaser.Scene {
     grid.setDepth(this.renderDepth.map);
 
     //define player start location
-    const startLocation = { x: this.gridPosition(3), y: this.gridPosition(3) };
+    const startLocation = { x: this.gridPosition(6), y: this.gridPosition(6) };
 
     //create player object and place on map
     this.player = {
@@ -229,8 +229,8 @@ class DungeonScene extends Phaser.Scene {
 
     //create array for locations and call function to place Barbarians
     this.locationBarbarians = [
-      { x: this.gridPosition(15), y: this.gridPosition(10) },
-      { x: this.gridPosition(13), y: this.gridPosition(14) },
+      { x: this.gridPosition(9), y: this.gridPosition(10) },
+      { x: this.gridPosition(14), y: this.gridPosition(17) },
     ];
     for (let i = 0; i < this.locationBarbarians.length; i++) {
       this.createNpc(
@@ -241,7 +241,7 @@ class DungeonScene extends Phaser.Scene {
     }
     //create array for locations and call function to place Wizards
     this.locationWizards = [
-      { x: this.gridPosition(20), y: this.gridPosition(17) },
+      { x: this.gridPosition(20), y: this.gridPosition(10) },
       { x: this.gridPosition(15), y: this.gridPosition(22) },
     ];
     for (let i = 0; i < this.locationWizards.length; i++) {
@@ -354,7 +354,7 @@ class DungeonScene extends Phaser.Scene {
         this.player.attackDest[this.player.axis],
         this.player.axis,
         this.player.direction,
-        0.3,
+        this.globalMoveSpeed * 0.8,
         () => {
           //calculate damage and set variable if npc died
           const died = this.damageCalc(
@@ -395,7 +395,7 @@ class DungeonScene extends Phaser.Scene {
         this.player.attackReturn[this.player.axis],
         this.player.axis,
         this.player.direction * -1,
-        0.5,
+        this.globalMoveSpeed * 0.3,
         () => {
           this.endMeleeLunge(this.player);
           this.startNpcTurn();
@@ -451,7 +451,7 @@ class DungeonScene extends Phaser.Scene {
           this.entities[i].attackDest[this.entities[i].axis],
           this.entities[i].axis,
           this.entities[i].direction,
-          0.3,
+          this.globalMoveSpeed * 0.8,
           () => {
             //calculate damage and set variable if npc died
             this.npcAttack(this.entities[i]);
@@ -472,7 +472,7 @@ class DungeonScene extends Phaser.Scene {
           this.entities[i].attackReturn[this.entities[i].axis],
           this.entities[i].axis,
           this.entities[i].direction * -1,
-          0.5,
+          this.globalMoveSpeed * 0.3,
           () => {
             this.endMeleeLunge(this.entities[i]);
           },
