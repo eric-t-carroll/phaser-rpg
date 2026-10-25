@@ -5,6 +5,8 @@ An old-school turn-based dungeon crawler built in JavaScript with Phaser 4.2.1. 
 
 Status: Complete (July 2026). Wrapped up to move on to other projects.
 
+[Play it here](https://eric-t-carroll.github.io/phaser-rpg/)
+
 ---
 
 ## How do I run the game?
