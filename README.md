@@ -7,6 +7,8 @@ Status: Complete (July 2026). Wrapped up to move on to other projects.
 
 [Play it here](https://eric-t-carroll.github.io/phaser-rpg/)
 
+<img src="screenshots/Gameplay.png" alt="Gameplay screenshot" width="700">
+
 ---
 
 ## How do I run the game?
